@@ -1,6 +1,6 @@
 {
     "name": "@particle-academy/fancy-ws",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "A WebSocket server for Node with zero runtime dependencies. Node ships a WebSocket client and no server; this is the server half — RFC 6455 framing over node:http's upgrade event, with authorisation before the 101.",
     "repository": {
         "type": "git",

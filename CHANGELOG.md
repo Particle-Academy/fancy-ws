@@ -8,6 +8,28 @@ version number is not a stability promise until 1.0; read the entry.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-11
+
+**No code change — nothing to do.** `0.1.1` is byte-for-byte the same library
+as `0.1.0`. It exists so that a release of this package has been published by
+CI, which no release had been.
+
+### Changed
+
+- **The tarball carries OIDC provenance.** `0.1.0` was published by hand to
+  claim the npm name, so it has no attestations — and because nothing had ever
+  published through `publish.yml`, nothing had established that it *can*. Take
+  `0.1.1` if you verify signatures (`npm audit signatures`); the code is
+  identical either way.
+- **This version has a git tag and a GitHub release.** `0.1.0` had neither, so
+  there was no route from the registry back to the commit it was built from.
+
+For the record, because `0.1.0` cannot be given provenance after the fact: its
+published tarball was checked against the source by rebuilding commit `29666df`
+and comparing both bundles, both declaration files, README, CHANGELOG, LICENSE
+and package.json — all byte-identical. Reproduction instead of a signature, but
+the same conclusion.
+
 ## [0.1.0] - 2026-10-11
 
 First release.
