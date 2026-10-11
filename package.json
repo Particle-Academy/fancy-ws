@@ -1,0 +1,70 @@
+{
+    "name": "@particle-academy/fancy-ws",
+    "version": "0.1.0",
+    "description": "A WebSocket server for Node with zero runtime dependencies. Node ships a WebSocket client and no server; this is the server half — RFC 6455 framing over node:http's upgrade event, with authorisation before the 101.",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Particle-Academy/fancy-ws.git"
+    },
+    "homepage": "https://github.com/Particle-Academy/fancy-ws#readme",
+    "bugs": "https://github.com/Particle-Academy/fancy-ws/issues",
+    "type": "module",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            },
+            "require": {
+                "types": "./dist/index.d.cts",
+                "default": "./dist/index.cjs"
+            }
+        },
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE",
+        "CHANGELOG.md"
+    ],
+    "scripts": {
+        "build": "tsup",
+        "dev": "tsup --watch",
+        "lint": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "clean": "rm -rf dist",
+        "prepublishOnly": "tsup",
+        "smoke": "node scripts/smoke.mjs"
+    },
+    "keywords": [
+        "websocket",
+        "websocket-server",
+        "rfc6455",
+        "ws",
+        "zero-dependency",
+        "node",
+        "realtime",
+        "fancy"
+    ],
+    "overrides": {
+        "esbuild": "^0.28.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22",
+        "tsup": "^8.5.0",
+        "typescript": "^5.8.0",
+        "vitest": "^5.0.3"
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "license": "MIT"
+}

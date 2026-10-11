@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # The suite opens real sockets and asserts TCP-segment behaviour (what
+        # lands in Node's `head` buffer versus what arrives as a later `data`
+        # event). That is exactly the kind of thing one platform agrees with
+        # and another does not, so it runs on all three rather than on the
+        # cheapest one.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Third-party dependency allowlist. The allowlist is FETCHED, never
+      # vendored: one source of truth, so no per-repo copy can drift out of
+      # agreement with it.
+      #
+      # Worth noting what it has to check here: this package's RUNTIME
+      # dependency count is zero, so the only surface is devDependencies.
+      - name: Fetch the third-party allowlist
+        uses: actions/checkout@v7
+        with:
+          repository: Particle-Academy/.github
+          path: .third-party-allowlist
+          persist-credentials: false
+
+      - name: Third-party dependency allowlist
+        run: |
+          node .third-party-allowlist/third-party/check.mjs --repo .
+          node -e "require('node:fs').rmSync('.third-party-allowlist',{recursive:true,force:true})"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npx tsup
+
+      # The suite imports `src/`, so it says nothing about what a consumer
+      # receives. This imports `dist/` through both entry points the manifest
+      # advertises and opens a real connection through each -- a wrong
+      # `exports` map passes a green suite and fails on install.
+      - name: Smoke-test the built artifact
+        run: node scripts/smoke.mjs
