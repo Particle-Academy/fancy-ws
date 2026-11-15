@@ -8,12 +8,55 @@ version number is not a stability promise until 1.0; read the entry.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-15
+
+Hardening, found by an RFC 6455 review before fancy-sockets moved onto this
+package. **Two changes can refuse something 0.1 accepted; for real clients,
+do nothing**: browsers, Node's `WebSocket`, pusher-js and every standard client
+send canonical keys and rarely fragment.
+
+### Added
+
+- **`connection.bufferedAmount`**, the bytes queued for a peer and not yet
+  handed to the OS, as the browser `WebSocket.bufferedAmount`. Read it to cut off
+  a slow or stalled peer before it holds unbounded memory; the threshold is
+  yours.
+- **`maxFragments`** server option (default 1024).
+
 ### Changed
 
+- **BREAKING: a message split into more than 1024 frames closes 1009.** Before,
+  a peer could send empty continuation frames forever: six bytes on the wire
+  each, a Buffer each in the reassembly list, and the byte limit never moved.
+  If you really expect more, raise `maxFragments`.
+- **BREAKING: `Sec-WebSocket-Key` must be exactly 16 bytes of standard base64**
+  (22 characters and `==`), or the handshake answers 400. Before, it was checked
+  by decoding, and Node's base64 decoder skips characters it does not know, so a
+  key full of junk could pass. Standard clients already send this shape.
+- **Pongs are coalesced under backpressure.** A peer that sends pings and never
+  reads used to make the server queue one pong per ping without bound. Now,
+  while the write buffer is over its high-water mark, only the latest ping is
+  answered, once it drains, as RFC 6455 5.5.3 allows. Nothing to do.
 - **Releases need a lab-run certificate.** `publish.yml` gains a read-only
   `lab-certificate` job that every publishing job needs: a tag is published only
   when the fancy-labs lab has certified that exact version and commit. Consumers
   do nothing; this changes how releases are cut, not what the package does.
+
+### Fixed
+
+- **Nothing is read after the peer's close frame.** A half-open peer that kept
+  writing after its close had its later data frames delivered as messages, and
+  grew the read buffer until the close timer fired. RFC 6455 5.5.1 has the peer
+  send nothing after its close; the connection now stops reading, as it already
+  did after failing a connection for a protocol violation (where the bad bytes
+  happened to fail again).
+- **The sabotage probe runs on a Windows checkout.** Its multi-line anchors were
+  LF and a `core.autocrlf` checkout is CRLF, so six of its nine sabotages could
+  only ever report SKIP there. It now matches on LF and writes back in the file's
+  own line endings.
+- **The "refused before the 101" test knows Node 24.** It pinned Node 22's
+  client (`error` and no `close`); by Node 24 the client also fires `close`, as
+  the spec says. Both lines are pinned exactly, so the next change still fails.
 
 ## [0.1.1] - 2026-10-11
 

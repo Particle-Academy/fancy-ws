@@ -207,8 +207,18 @@ describe('verify', () => {
         // Asserted here so an upstream fix shows up as a failure in OUR suite
         // rather than as a consumer waiting forever on a `close` that the
         // README promised would not come.
-        expect(events).toEqual(['error']);
-        expect(client.readyState).toBe(WebSocket.CONNECTING);
+        //
+        // The fix arrived by Node 24 (measured on v24.22.1): `error` then
+        // `close`, and readyState CLOSED, as the spec says. Both lines are
+        // pinned exactly, so the next change on either still fails here.
+        const major = Number(process.versions.node.split('.')[0]);
+        if (major <= 22) {
+            expect(events).toEqual(['error']);
+            expect(client.readyState).toBe(WebSocket.CONNECTING);
+        } else {
+            expect(events).toEqual(['error', 'close']);
+            expect(client.readyState).toBe(WebSocket.CLOSED);
+        }
     });
 
     it('awaits an async verify, and keeps frames the client pipelined meanwhile', async () => {

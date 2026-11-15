@@ -67,6 +67,21 @@ constructor — that would silence a consumer's own handler.
   a peer sends under-limit fragments forever and the reassembly buffer grows
   without bound while every individual frame passes.
 
+### 3b. A PEER CANNOT MAKE US HOLD UNBOUNDED MEMORY IN OTHER WAYS EITHER
+
+`hardening.test.ts` holds these, each with a sabotage entry:
+
+- **Fragments are counted** (`maxFragments`, default 1024), because empty
+  continuation frames never move the byte count.
+- **Pongs coalesce under backpressure.** While the socket is over its
+  high-water mark only the latest ping's payload is kept, and sent on `drain`
+  (RFC 6455 5.5.3). One pong per ping to a peer that never reads is unbounded.
+- **Input ends at the peer's close frame, or when we fail the connection**
+  (`#endInput`). A half-open peer can keep writing after either; nothing it
+  sends after that is parsed, delivered or buffered.
+- **`bufferedAmount` is exposed, not acted on.** What counts as "too slow" is
+  the consumer's policy, so the consumer gets the number.
+
 ### 4. THE SOCKET STAYS PAUSED UNTIL THE HANDSHAKE IS AUTHORISED
 
 Node hands over `head` — bytes the client pipelined in the same TCP segment as
@@ -98,7 +113,7 @@ problem.**
 ## Testing
 
 ```bash
-npm test            # 99 tests
+npm test            # 111 tests
 npx tsc --noEmit
 npx tsup && node scripts/smoke.mjs
 ```
@@ -153,9 +168,10 @@ filter is a claim about test names; check it.
   Node resolves builtins ahead of `node_modules` for both `require` and bare
   ESM specifiers — but an auditor reading the tarball sees different specifiers
   than the source.
-- **A refused handshake gives Node's own client `error` and no `close`**, with
-  `readyState` stuck at `CONNECTING`. Measured on v22.23.2; it deviates from the
-  WHATWG spec, and the suite asserts the current behaviour so an upstream fix
+- **A refused handshake gives Node 22's own client `error` and no `close`**, with
+  `readyState` stuck at `CONNECTING` (measured on v22.23.2, against the WHATWG
+  spec). By Node 24 it also fires `close` and reaches `CLOSED` (measured on
+  v24.22.1). The suite pins both exactly, so the next change on either line
   arrives as a failure here rather than as a confused consumer.
 - **`send()` returns `false` instead of throwing** when the socket is not open.
   A peer closing between a consumer's check and its send is ordinary, and an

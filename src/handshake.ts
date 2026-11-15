@@ -18,6 +18,9 @@ import type { IncomingMessage } from 'node:http';
  */
 export const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
+/** Sixteen bytes in standard base64: 22 alphabet characters and `==`. */
+const SEC_WEBSOCKET_KEY = /^[A-Za-z0-9+/]{21}[AQgw]==$/;
+
 /** `Sec-WebSocket-Accept` for a client's `Sec-WebSocket-Key`. */
 export function acceptKey(key: string): string {
     return createHash('sha1')
@@ -72,8 +75,12 @@ export function inspectHandshake(req: IncomingMessage): HandshakeInspection {
         };
     }
 
+    // 4.1: the key is 16 random bytes, base64-encoded, which is always 22
+    // characters and two `=`. Checked by its exact shape, not by decoding:
+    // Node's base64 decoder skips characters it does not know, so a key full
+    // of junk can still decode to 16 bytes.
     const key = req.headers['sec-websocket-key'];
-    if (typeof key !== 'string' || Buffer.from(key, 'base64').length !== 16) {
+    if (typeof key !== 'string' || !SEC_WEBSOCKET_KEY.test(key)) {
         return { ok: false, status: 400, message: 'Missing or malformed Sec-WebSocket-Key' };
     }
 

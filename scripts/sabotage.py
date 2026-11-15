@@ -91,6 +91,41 @@ SABOTAGES = [
         "        .update(key)",
         "RFC 6455 section 1.3",
     ),
+    (
+        "no cap on how many fragments a message may have",
+        "src/connection.ts",
+        "            if (this.#fragments.length > this.#options.maxFragments) {",
+        "            if (false) {",
+        "fragment count",
+    ),
+    (
+        "keep reading after the peer's close frame",
+        "src/connection.ts",
+        "        this.#peerReason = reason;\n        this.#endInput();",
+        "        this.#peerReason = reason;",
+        "after the peer's close frame",
+    ),
+    (
+        "answer every ping at once, whatever is already queued",
+        "src/connection.ts",
+        "        if (!this.#socket.writableNeedDrain && this.#pendingPong === null) {",
+        "        if (true) {",
+        "ping flood",
+    ),
+    (
+        "report a constant bufferedAmount",
+        "src/connection.ts",
+        "        return this.#socket.writableLength;",
+        "        return 0;",
+        "bufferedAmount",
+    ),
+    (
+        "accept any Sec-WebSocket-Key that decodes to 16 bytes",
+        "src/handshake.ts",
+        "    if (typeof key !== 'string' || !SEC_WEBSOCKET_KEY.test(key)) {",
+        "    if (typeof key !== 'string' || Buffer.from(key, 'base64').length !== 16) {",
+        "even when it decodes to 16 bytes",
+    ),
 ]
 
 
@@ -132,12 +167,18 @@ failures = []
 for label, rel, before, after, test_filter in SABOTAGES:
     path = REPO / rel
     original = io.open(path, encoding="utf-8", newline="").read()
-    if before not in original:
+    # Anchors are written with LF. A Windows checkout (core.autocrlf) has CRLF
+    # on disk, where every multi-line anchor would miss and report SKIP: match
+    # on LF, then write the file back in its own line endings.
+    crlf = "\r\n" in original
+    text = original.replace("\r\n", "\n") if crlf else original
+    if before not in text:
         print(f"SKIP  {label}\n      anchor not found in {rel} -- the sabotage is stale, not the code")
         failures.append(label)
         continue
 
-    io.open(path, "w", encoding="utf-8", newline="").write(original.replace(before, after, 1))
+    broken = text.replace(before, after, 1)
+    io.open(path, "w", encoding="utf-8", newline="").write(broken.replace("\n", "\r\n") if crlf else broken)
     try:
         code, selected, output = run(test_filter)
     finally:

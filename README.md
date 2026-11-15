@@ -71,10 +71,10 @@ every HTTP client already understands.
 One measured caveat if the client is Node's own: on a refused handshake, Node
 **v22.23.2** fires `error` and **no** `close`, and leaves `readyState` at
 `CONNECTING` forever. A consumer waiting on `close` to learn the handshake
-failed waits indefinitely — listen for `error`. This is a deviation from the
-WHATWG spec's "fail the WebSocket connection", so it may change; the suite
-asserts the current behaviour so a fix surfaces as a test failure here rather
-than as a surprise in a consumer.
+failed waits indefinitely — listen for `error`, which every version fires.
+Node **v24.22.1** also fires `close` and reaches `CLOSED`, as the WHATWG spec
+says. The suite pins both, so the next change surfaces as a test failure here
+rather than as a surprise in a consumer.
 
 ## The connection
 
@@ -85,6 +85,7 @@ socket.close(1000, 'done');
 socket.terminate();                   // no handshake; reports 1006
 socket.ping();
 socket.readyState;                    // 0/1/2/3, as in the browser
+socket.bufferedAmount;                // bytes queued for this peer; cut off a slow one yourself
 socket.remoteAddress;
 socket.protocol;                      // negotiated subprotocol, or null
 socket.request;                        // the upgrade IncomingMessage
@@ -109,6 +110,7 @@ needs no decode step. Messages are reassembled across fragments before delivery.
 | `verify` | — | authorise before the 101 (above) |
 | `protocols` | — | subprotocols supported, most preferred first |
 | `maxPayload` | 1 MiB | largest message, per frame **and** per reassembled message |
+| `maxFragments` | 1024 | most frames one message may be split into; over it closes 1009 |
 | `closeTimeoutMs` | 10 000 | how long to await the peer's close frame |
 
 **`onPathMismatch: 'ignore'` is the default so this can share a port** with

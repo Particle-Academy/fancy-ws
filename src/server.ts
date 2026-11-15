@@ -68,6 +68,8 @@ export interface WebSocketServerOptions {
     protocols?: string[];
     /** Largest message accepted, per frame and per reassembled message. Default 1 MiB. */
     maxPayload?: number;
+    /** Most frames one message may be split into. Default 1024; over it closes 1009. */
+    maxFragments?: number;
     /** How long to wait for the peer's close frame. Default 10_000 ms. */
     closeTimeoutMs?: number;
 }
@@ -127,6 +129,7 @@ export class WebSocketServer extends EventEmitter<WebSocketServerEvents> {
         this.#options = options;
         this.#connectionOptions = {
             maxPayload: options.maxPayload ?? 1024 * 1024,
+            maxFragments: options.maxFragments ?? 1024,
             closeTimeoutMs: options.closeTimeoutMs ?? 10_000,
             protocol: null,
         };

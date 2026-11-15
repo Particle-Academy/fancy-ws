@@ -48,6 +48,12 @@ export interface WebSocketConnectionEvents {
 
 export interface ConnectionOptions {
     maxPayload: number;
+    /**
+     * Most frames one message may be split into. Without it a peer can send
+     * empty continuation frames forever: each costs six bytes on the wire and
+     * a Buffer in the reassembly list, while the byte count never moves.
+     */
+    maxFragments: number;
     /** Milliseconds to wait for the peer's close frame before destroying the socket. */
     closeTimeoutMs: number;
     /** Negotiated subprotocol, or `null` when none was agreed. */
@@ -78,6 +84,15 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
     #fragmentBytes = 0;
 
     #started = false;
+    /**
+     * Set once the peer's close frame arrives or the connection is failed.
+     * From then on nothing more is read: RFC 6455 5.5.1 has the peer send
+     * nothing after its close, and a half-open peer that keeps writing must
+     * neither have its frames acted on nor grow our buffer.
+     */
+    #inputEnded = false;
+    /** The most recent ping's payload, waiting for the write buffer to drain. */
+    #pendingPong: Buffer | null = null;
     #closeSent = false;
     #closeEmitted = false;
     #closeTimer: NodeJS.Timeout | undefined;
@@ -136,6 +151,16 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
 
     get readyState(): number {
         return this.#readyState;
+    }
+
+    /**
+     * Bytes queued for this peer and not yet handed to the operating system,
+     * as the browser `WebSocket.bufferedAmount`. A consumer reads it to tell a
+     * slow or stalled peer from a live one and cut it off before it holds
+     * unbounded memory; this package does not choose that threshold.
+     */
+    get bufferedAmount(): number {
+        return this.#socket.writableLength;
     }
 
     /**
@@ -247,6 +272,7 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
     }
 
     #fail(code: number, message: string): void {
+        this.#endInput();
         this.#reportError(new ProtocolError(code, message));
         this.#sendClose(code, Buffer.from(message, 'utf8').subarray(0, 123));
         // RFC 6455 7.1.7: after failing the connection a server does not wait
@@ -255,8 +281,15 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
         this.#socket.end();
     }
 
+    #endInput(): void {
+        this.#inputEnded = true;
+        this.#buffer = EMPTY;
+        this.#fragments = [];
+        this.#fragmentBytes = 0;
+    }
+
     #onData(chunk: Buffer): void {
-        if (this.#readyState === READY_STATE.closed) {
+        if (this.#readyState === READY_STATE.closed || this.#inputEnded) {
             return;
         }
         this.#buffer = this.#buffer.length === 0 ? chunk : Buffer.concat([this.#buffer, chunk]);
@@ -266,7 +299,7 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
     }
 
     #parse(): void {
-        for (;;) {
+        while (!this.#inputEnded) {
             let frame;
             try {
                 frame = decodeFrame(this.#buffer, {
@@ -310,6 +343,10 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
                 return false;
             }
             this.#fragments.push(payload);
+            if (this.#fragments.length > this.#options.maxFragments) {
+                this.#fail(1009, 'Message is split into more fragments than maxFragments');
+                return false;
+            }
             if (!fin) {
                 return true;
             }
@@ -340,11 +377,42 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
         return true;
     }
 
+    /**
+     * Pong, coalesced under backpressure. A peer that sends pings and never
+     * reads would otherwise make us queue a pong per ping without bound. RFC
+     * 6455 5.5.3 allows answering only the most recent ping, so while the
+     * write buffer is over its high-water mark we keep just the latest payload
+     * and send it once the buffer drains.
+     */
+    #answerPing(payload: Buffer): void {
+        if (!this.#socket.writableNeedDrain && this.#pendingPong === null) {
+            this.#write(encodeFrame(OPCODE.pong, payload));
+            return;
+        }
+        const waiting = this.#pendingPong !== null;
+        this.#pendingPong = payload;
+        if (waiting) {
+            return;
+        }
+        const flush = (): void => {
+            const latest = this.#pendingPong;
+            this.#pendingPong = null;
+            if (latest !== null && this.#readyState === READY_STATE.open) {
+                this.#write(encodeFrame(OPCODE.pong, latest));
+            }
+        };
+        if (this.#socket.writableNeedDrain) {
+            this.#socket.once('drain', flush);
+        } else {
+            queueMicrotask(flush);
+        }
+    }
+
     #handleControl(opcode: number, payload: Buffer): boolean {
         if (opcode === OPCODE.ping) {
             this.emit('ping', payload);
             if (this.#readyState === READY_STATE.open) {
-                this.#write(encodeFrame(OPCODE.pong, payload));
+                this.#answerPing(payload);
             }
             return true;
         }
@@ -366,6 +434,7 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
             // because 1005 must never go on the wire.
             this.#peerCode = 1005;
             this.#peerReason = '';
+            this.#endInput();
             if (!this.#closeSent) {
                 this.#closeSent = true;
                 this.#readyState = READY_STATE.closing;
@@ -390,6 +459,7 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
 
         this.#peerCode = code;
         this.#peerReason = reason;
+        this.#endInput();
         this.#sendClose(code, payload.subarray(2, 125));
         this.#socket.end();
         return false;
