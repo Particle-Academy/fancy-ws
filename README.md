@@ -11,6 +11,13 @@ nothing else.
 npm install @particle-academy/fancy-ws
 ```
 
+<!-- fancy-agents-note:start -->
+> **For agents.** Every Fancy package, this one included, is listed on the
+> Fancy MCP catalog server at `https://ui.particle.academy/mcp` (streamable HTTP, no API key;
+> MCP id `fancy-ui`), with install commands and docs. How an agent installs
+> and uses this package is in [AGENTS.md](https://github.com/Particle-Academy/fancy-ws/blob/main/AGENTS.md).
+<!-- fancy-agents-note:end -->
+
 ## Quick start
 
 ```ts
@@ -154,7 +161,7 @@ server is still serving.
 
 ## Status
 
-`0.1.x`. Pre-1.0, so breaking changes land in minor releases — see
+`0.x`. Pre-1.0, so breaking changes land in minor releases — see
 [`CHANGELOG.md`](./CHANGELOG.md). Requires **Node >= 22**.
 
 MIT © Particle Academy
