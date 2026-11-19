@@ -15,6 +15,7 @@ version number is not a stability promise until 1.0; read the entry.
   verify, and nothing new it signs ever can. Consumers do nothing.
 
 - **Docs:** `AGENTS.md` is now the guide to using this package (install, its entries on the Fancy MCP catalog server, API essentials, traps), and it ships in the package. The contributor notes it held moved to `CONTRIBUTING.md`, and `CLAUDE.md` is now a symlink to it. The README points to the MCP server and to `AGENTS.md`. No code changed; nothing to do.
+- CI: re-pin org third-party allowlist to 2614224
 
 ## [0.2.0] - 2026-11-15
 
